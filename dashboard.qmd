@@ -2,4 +2,47 @@
 title: Dashboard
 format: dashboard
 ---
+```{r}
+library(tidyverse)
+library(readr)
+library(scales)
+options(dplyr.summarise.inform = FALSE)
 
+cong_by_cd <- read_rds("gerrymandering-JreamIT/data/cong_2024_district_results.rds") |>
+  mutate(
+    winner = if_else(dem_2party_share>0.5,"DEM","REP"),
+    margin_pct = (dem_2party_share - 0.5)*100
+  )
+
+total_dem_votes <- sum(cong_by_cd$dem_votes)
+total_rep_votes <- sum(cong_by_cd$rep_votes)
+total_votes <- total_dem_votes + total_rep_votes
+
+statewide_dem_share <- total_dem_votes / total_votes
+statewide_rep_share <- total_rep_votes / total_votes
+
+seat_counts <- cong_by_cd |> count(winner)
+num_districts <- nrow(cong_by_cd)
+dem_seats <- seat_counts$n[seat_counts$winner=="DEM"]
+rep_seats <- seat_counts$n[seat_counts$winner=="REP"]
+
+cong_by_cd |>
+  ggplot(aes(
+    x = reorder(as.factor(cddist), dem_2party_share),
+    y = dem_2party_share,
+    fill = winner
+  )) +
+  geom_col() +
+  coord_flip() +
+  scale_y_continuous(labels = percent_format())
+
+competitive_tbl <- cong_by_cd |>
+  filter(abs(margin_pct) <= 5) |>
+  transmute(
+    District  = cddist,
+    Dem_share = round(dem_2party_share*100,1),
+    Margin    = round(margin_pct,1),
+    Winner    = winner
+  )
+
+competitive_tbl

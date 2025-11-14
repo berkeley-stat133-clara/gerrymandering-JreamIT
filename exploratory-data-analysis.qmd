@@ -3,26 +3,66 @@ title: Exploratory Data Analysis
 format: typst
 ---
 
+```{r}
+print(
+  sov_clean |>
+    summarise(
+      n_precincts = n(),
+      n_counties  = n_distinct(county),
+      n_cddist    = n_distinct(cddist)
+    )
+)
+```
 ### Question 1
 
-Put your question here.
+Precinct turnout histogram
 
 ### Answer 1
-
-Put your answer here.
+```{r}
+sov_clean |>
+  ggplot(aes(x=totvote)) +
+  geom_histogram(bins=40)
+```
 
 ### Question 2
 
-Put your question here.
+District margins
 
 ### Answer 2
 
-Put your answer here.
+```{r}
+cong_with_margin <- cong_by_cd |>
+  mutate(
+    winner = if_else(dem_2party_share>0.5,"DEM","REP"),
+    margin_pct = (dem_2party_share - 0.5)*100
+  )
+
+# Closest 10
+print(cong_with_margin |> arrange(abs(margin_pct)) |> slice(1:10))
+
+# Widest 10
+print(cong_with_margin |> arrange(desc(abs(margin_pct))) |> slice(1:10))
+
+```
 
 ### Question 3
 
-Put your question here.
+Compare vs Excel
 
 ### Answer 3
 
-Put your answer here.
+```{r}
+cong_compare <- cong_by_cd |>
+  select(
+    cddist,
+    dem_votes_sov = dem_votes,
+    rep_votes_sov = rep_votes
+  ) |>
+  left_join(cong_district_excel, by="cddist") |>
+  mutate(
+    diff_dem = dem_votes_sov - dem_votes_excel,
+    diff_rep = rep_votes_sov - rep_votes_excel
+  )
+
+print(cong_compare)
+```

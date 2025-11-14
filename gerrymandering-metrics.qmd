@@ -9,3 +9,61 @@ format: typst
 
 ### 2024 Election Results and the proposed 2025 District Map
 
+```{r}
+library(tidyverse)
+library(readr)
+options(dplyr.summarise.inform = FALSE)
+
+sov_clean <- read_rds("gerrymandering-JreamIT/data/g24_sov_by_g24_svprec_clean.rds")
+
+cong_by_cd <- sov_clean |>
+  mutate(
+    dem_votes = coalesce(cngdem01,0) + coalesce(cngdem02,0),
+    rep_votes = coalesce(cngrep01,0) + coalesce(cngrep02,0)
+  ) |>
+  group_by(cddist) |>
+  summarise(
+    dem_votes = sum(dem_votes),
+    rep_votes = sum(rep_votes),
+    total_2party = dem_votes + rep_votes
+  ) |>
+  filter(cddist!=0) |>
+  mutate(dem_2party_share = dem_votes / total_2party) |>
+  ungroup()
+
+mm_stats <- cong_by_cd |>
+  summarise(
+    mean_dem_share = mean(dem_2party_share),
+    median_dem_share = median(dem_2party_share),
+    mean_median_diff = mean_dem_share - median_dem_share
+  )
+print(mm_stats)
+
+eff_data <- cong_by_cd |>
+  mutate(
+    winner = if_else(dem_2party_share>0.5,"DEM","REP"),
+    dem_wasted = case_when(
+      winner=="DEM" ~ dem_votes - 0.5*total_2party,
+      TRUE          ~ dem_votes
+    ),
+    rep_wasted = case_when(
+      winner=="DEM" ~ rep_votes,
+      TRUE          ~ rep_votes - 0.5*total_2party
+    )
+  )
+
+total_dem_wasted <- sum(eff_data$dem_wasted)
+total_rep_wasted <- sum(eff_data$rep_wasted)
+total_two_party_votes <- sum(eff_data$total_2party)
+
+efficiency_gap <- (total_dem_wasted - total_rep_wasted) /
+                  total_two_party_votes
+
+print(
+  tibble(
+    total_dem_wasted = total_dem_wasted,
+    total_rep_wasted = total_rep_wasted,
+    total_two_party_votes = total_two_party_votes,
+    efficiency_gap = efficiency_gap
+  )
+)

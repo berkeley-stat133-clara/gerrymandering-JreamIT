@@ -34,6 +34,20 @@ Calculate the mean-median score associated with this particular district breakdo
 
 ```{r}
 # add code for Q1 here
+v = votes$d_votes
+r = votes$r_votes
+
+v_mean = mean(v)
+v_median = median(v)
+
+r_mean = mean(r)
+r_median = median(r)
+  
+print(paste("v_mean is: ", v_mean))
+print(paste("v_median is: ", v_median))
+print(paste("r_mean is: ", r_mean))
+print(paste("v_median is: ", v_median))
+
 ```
 
 ### Q2. Efficiency Gap
@@ -45,4 +59,19 @@ Calculate the Efficiency Gap (EG) associated with this particular district break
 
 ```{r}
 # add code for Q2 here
+total = v + r
+print(total)
+
+wasted_votes <- function(party, oppo) {
+    total = party + oppo
+    winner = ifelse(party > oppo, "party", "opponent")
+    wasted = ifelse(winner == "party", party - (total / 2 + 1), party)
+    return(wasted)
+}
+wasted_d = wasted_votes(v,r)
+wasted_r = wasted_votes(r,v)
+
+res = sum(wasted_d - wasted_r) / sum(total)
+print(paste("EG:", res))
+
 ```

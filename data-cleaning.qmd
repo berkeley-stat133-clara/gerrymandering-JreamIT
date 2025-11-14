@@ -3,3 +3,92 @@ title: Data Cleaning
 format: typst
 ---
 
+```{r}
+library(tidyverse)
+library(janitor)
+library(readr)
+library(readxl)
+library(stringr)
+library(purrr)
+options(dplyr.summarise.inform = FALSE)
+
+sov_raw <- read_csv("gerrymandering-JreamIT/data/g24_sov_by_g24_svprec.csv") |>
+  clean_names()
+
+sov_clean <- sov_raw |>
+  mutate(
+    totreg = as.numeric(totreg),
+    demreg = as.numeric(demreg),
+    repreg = as.numeric(repreg),
+    totvote  = as.numeric(totvote),
+    cngdem01 = as.numeric(cngdem01),
+    cngdem02 = as.numeric(cngdem02),
+    cngrep01 = as.numeric(cngrep01),
+    cngrep02 = as.numeric(cngrep02),
+    cngind01 = as.numeric(cngind01)) |>
+        filter(election == "g24", geo_type == "svprec")
+
+dup_keys <- sov_clean |>
+  count(svprec_key) |>
+  filter(n > 1)
+
+print(dup_keys)
+
+cong_by_cd <- sov_clean |>
+  mutate(
+    dem_votes = coalesce(cngdem01,0) + coalesce(cngdem02,0),
+    rep_votes = coalesce(cngrep01,0) + coalesce(cngrep02,0)
+  ) |>
+  group_by(cddist) |>
+  summarise(
+    dem_votes = sum(dem_votes, na.rm=TRUE),
+    rep_votes = sum(rep_votes, na.rm=TRUE),
+    total_2party = dem_votes + rep_votes
+  ) |>
+  filter(cddist != 0) |>
+  mutate(
+    dem_2party_share = dem_votes / total_2party
+  ) |>
+  ungroup()
+
+write_rds(cong_by_cd, "gerrymandering-JreamIT/data/cong_2024_district_results.rds")
+
+cong_raw <- read_excel(
+  "gerrymandering-JreamIT/data/g24-results-by-district.xlsx",
+  sheet="Representative in Congress"
+) %>% clean_names()
+
+block_starts <- which(str_detect(cong_raw[[1]], "Congressional District"))
+
+extract_district_block <- function(start_row, df) {
+
+  cand_row <- df[start_row + 1, ]
+  dem_name <- cand_row[[2]]
+  rep_name <- cand_row[[3]]
+
+  totals_row <- which(df[[1]] == "District Totals")
+  totals_row <- totals_row[totals_row > start_row][1]
+
+  dem_votes <- as.numeric(df[[2]][totals_row])
+  rep_votes <- as.numeric(df[[3]][totals_row])
+
+  header_text <- df[[1]][start_row]
+  district_id <- as.integer(str_extract(header_text, "^[0-9]+"))
+
+  tibble(
+    cddist = district_id,
+    dem_name = dem_name,
+    rep_name = rep_name,
+    dem_votes_excel = dem_votes,
+    rep_votes_excel = rep_votes
+  )
+}
+
+cong_district_excel <- map_dfr(block_starts, extract_district_block, df=cong_raw) |>
+  arrange(cddist)
+
+write_rds(cong_district_excel, "gerrymandering-JreamIT/data/cong_2024_district_results_excel.rds")
+
+write_csv(sov_clean, "gerrymandering-JreamIT/data/g24_sov_by_g24_svprec_clean.csv")
+write_rds(sov_clean, "gerrymandering-JreamIT/data/g24_sov_by_g24_svprec_clean.rds")
+
